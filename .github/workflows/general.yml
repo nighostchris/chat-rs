@@ -1,0 +1,39 @@
+name: General Pipeline
+
+on: [push, pull_request]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  test:
+    name: Testing
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Run Tests
+        run: cargo test
+
+  formatting:
+    name: Formatting
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - name: Verify Code Formatting
+        run: cargo fmt --check
+
+  coverage:
+    name: Code Coverage
+    runs-on: ubuntu-latest
+    container:
+      image: xd009642/tarpaulin
+      options: --security-opt seccomp=unconfined
+    steps:
+      - uses: actions/checkout@v3
+      - name: Generate Code Coverage Report
+        run: cargo tarpaulin --verbose --workspace

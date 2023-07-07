@@ -1,0 +1,10 @@
+[package]
+name = "chat-rs"
+version = "0.1.0"
+authors = ["Chris Liu <chrisliupascal@gmail.com>"]
+edition = "2021"
+description = "Experimental project to build a chat application server in Rust"
+readme = "README.md"
+license = "MIT"
+
+[dependencies]
