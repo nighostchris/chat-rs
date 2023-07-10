@@ -8,6 +8,7 @@ async fn main() {
     load_env_vars();
     init_logger();
 
+    debug!("testing 123");
     a_plus_b(1, 2);
 }
 

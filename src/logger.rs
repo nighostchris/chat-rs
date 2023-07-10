@@ -1,21 +1,34 @@
-use std::collections::{BTreeMap, HashMap};
-use tracing::{
-    field::{Field, ValueSet},
-    span, Event, Subscriber,
-};
+use std::collections::HashMap;
+use time::{format_description::well_known::Rfc3339, OffsetDateTime};
+use tracing::{field::Field, span, Event, Subscriber};
 use tracing_subscriber::{
-    field::Visit, layer::Context, prelude::__tracing_subscriber_SubscriberExt, registry,
+    field::Visit, layer::Context, prelude::__tracing_subscriber_SubscriberExt,
     registry::LookupSpan, util::SubscriberInitExt, EnvFilter, Layer,
 };
 
 struct CustomLayer;
 
-struct JsonVisitor<'a> {
-    map: &'a mut BTreeMap<String, serde_json::Value>,
+#[derive(Clone, Debug)]
+struct JsonStorage<'a> {
+    storage: HashMap<&'a str, serde_json::Value>,
+}
+
+impl<'a> JsonStorage<'a> {
+    pub fn get_storage(&self) -> &HashMap<&'a str, serde_json::Value> {
+        &self.storage
+    }
+}
+
+impl Default for JsonStorage<'_> {
+    fn default() -> Self {
+        Self {
+            storage: HashMap::new(),
+        }
+    }
 }
 
 pub fn init_logger() {
-    registry()
+    tracing_subscriber::registry()
         .with(EnvFilter::try_from_default_env().unwrap_or_else(|_| {
             // axum logs rejections from built-in extractors are at TRACE level
             "chat_rs=debug,axum::rejection=trace".into()
@@ -29,108 +42,112 @@ impl<S> Layer<S> for CustomLayer
 where
     S: Subscriber + for<'lookup> LookupSpan<'lookup>,
 {
-    fn on_new_span(&self, attrs: &span::Attributes<'_>, _id: &span::Id, _ctx: Context<'_, S>) {
-        let mut fields = BTreeMap::new();
-        let mut visitor = JsonVisitor { map: &mut fields };
+    // We want to record all the key-value pairs of function parameters if there are any
+    fn on_new_span(&self, attrs: &span::Attributes<'_>, id: &span::Id, ctx: Context<'_, S>) {
+        let span = ctx.span(id).expect("Span not found.");
+        let mut extensions = span.extensions_mut();
+
+        // Inherit fields from parent span if there is one
+        let mut visitor = if let Some(parent_span) = span.parent() {
+            // Extensions can be used for storing additional data to a span
+            let mut extensions = parent_span.extensions_mut();
+            extensions
+                .get_mut::<JsonStorage>()
+                .map(|value| value.to_owned())
+                .unwrap_or_default()
+        } else {
+            JsonStorage::default()
+        };
+
+        // Record all the fields of current span
         attrs.values().record(&mut visitor);
-        let ctx = _ctx.span(_id).unwrap();
-        // println!("{:?}", );
-        // ctx.span(id).unwrap().extensions_mut().insert()
+        // Insert the storage into current span extensions
+        extensions.insert(visitor);
     }
 
     fn on_event(&self, event: &Event<'_>, ctx: Context<'_, S>) {
-        // Convert field values into JSON object
-        let mut fields = BTreeMap::new();
-        let mut visitor = JsonVisitor { map: &mut fields };
-        event.record(&mut visitor);
+        let current_span = ctx.lookup_current();
+        // Record all the fields of current event
+        let mut event_visitor = JsonStorage::default();
+        event.record(&mut event_visitor);
 
-        let span = ctx.event_span(event).unwrap();
-        let mut output: HashMap<String, serde_json::Value> = HashMap::new();
-        // Log function name
+        // Initialize the HashMap that will store all the fields that construct the log message
+        let mut output: HashMap<&str, serde_json::Value> = HashMap::new();
+        // Log the event time
         output.insert(
-            "function".to_string(),
-            serde_json::Value::String(span.name().to_string()),
+            "timestamp",
+            serde_json::Value::String(OffsetDateTime::now_utc().format(&Rfc3339).unwrap()),
         );
-        // Log the custom message we typed
-        fields.iter().for_each(|(key, value)| {
-            output.insert(key.clone(), value.clone());
-        });
         // Log the log message level
         output.insert(
-            "level".to_string(),
+            "level",
             serde_json::Value::String(event.metadata().level().to_string().to_lowercase()),
         );
         // Log the location / module where the span / event happens
         output.insert(
-            "target".to_string(),
+            "target",
             serde_json::Value::String(event.metadata().target().to_string()),
         );
-        // Log the function parameters if there are some
-        let mut parameters: HashMap<String, serde_json::Value> = HashMap::new();
-        span.fields().iter().for_each(|field| {
-            parameters.insert(
-                field.name().to_string(),
-                serde_json::Value::String("".to_string()),
-            );
+        // Log the custom message we typed
+        event_visitor.get_storage().iter().for_each(|(key, value)| {
+            output.insert(key, value.clone());
         });
-        output.insert("fields".to_string(), serde_json::json!(parameters));
 
-        println!("{:?}", span.fields());
-
-        // span.extensions()
-        //     .get::<>()
-        //     .map(|value| serde_json::json!(value));
-        // let i = binding;
-        // match i {
-        //     Some(haha) => println!("{:#?}", haha),
-        //     None => (),
-        // }
-        // println!("{:?}", span.extensions().get::<CustomSpanParameterValues>());
+        // Log the function parameters if there are some
+        let mut parameters: HashMap<&str, serde_json::Value> = HashMap::new();
+        if let Some(span) = current_span {
+            let extensions = span.extensions();
+            // Log function name
+            output.insert(
+                "function",
+                serde_json::Value::String(span.name().to_string()),
+            );
+            // Get the data from extensions that store in on_new_span step
+            if let Some(visitor) = extensions.get::<JsonStorage>() {
+                for (key, value) in visitor.get_storage() {
+                    parameters.insert(key, value.clone());
+                }
+            }
+        }
+        if parameters.len() > 0 {
+            output.insert("params", serde_json::json!(parameters));
+        }
 
         println!(
             "{}",
-            serde_json::to_string_pretty(&serde_json::json!(output)).unwrap()
+            serde_json::to_string(&serde_json::json!(output)).unwrap()
         );
     }
 }
 
-impl<'a> Visit for JsonVisitor<'a> {
+impl<'a> Visit for JsonStorage<'a> {
     fn record_i64(&mut self, field: &Field, value: i64) {
-        self.map
-            .insert(field.name().to_string(), serde_json::json!(value));
+        self.storage.insert(field.name(), serde_json::json!(value));
     }
 
     fn record_f64(&mut self, field: &Field, value: f64) {
-        self.map
-            .insert(field.name().to_string(), serde_json::json!(value));
+        self.storage.insert(field.name(), serde_json::json!(value));
     }
 
     fn record_u64(&mut self, field: &Field, value: u64) {
-        self.map
-            .insert(field.name().to_string(), serde_json::json!(value));
+        self.storage.insert(field.name(), serde_json::json!(value));
     }
 
     fn record_bool(&mut self, field: &Field, value: bool) {
-        self.map
-            .insert(field.name().to_string(), serde_json::json!(value));
+        self.storage.insert(field.name(), serde_json::json!(value));
     }
 
     fn record_str(&mut self, field: &Field, value: &str) {
-        self.map
-            .insert(field.name().to_string(), serde_json::json!(value));
+        self.storage.insert(field.name(), serde_json::json!(value));
     }
 
     fn record_debug(&mut self, field: &Field, value: &dyn std::fmt::Debug) {
-        self.map.insert(
-            field.name().to_string(),
-            serde_json::json!(format!("{:?}", value)),
-        );
+        self.storage
+            .insert(field.name(), serde_json::json!(format!("{:?}", value)));
     }
 
     fn record_error(&mut self, field: &Field, value: &(dyn std::error::Error + 'static)) {
-        self.map.insert(
-            field.name().to_string(),
-            serde_json::json!(value.to_string()),
-        );
+        self.storage
+            .insert(field.name(), serde_json::json!(value.to_string()));
     }
 }
