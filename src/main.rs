@@ -1,9 +1,9 @@
-mod logger;
 mod config;
 mod external;
+mod logger;
 
-use external::db;
 use config::load_env_vars;
+use external::db;
 
 #[tokio::main]
 async fn main() {
