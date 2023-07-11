@@ -8,7 +8,7 @@ use tracing_subscriber::{
 
 struct CustomLayer;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 struct JsonStorage<'a> {
     storage: HashMap<&'a str, serde_json::Value>,
 }
@@ -19,15 +19,7 @@ impl<'a> JsonStorage<'a> {
     }
 }
 
-impl Default for JsonStorage<'_> {
-    fn default() -> Self {
-        Self {
-            storage: HashMap::new(),
-        }
-    }
-}
-
-pub fn init_logger() {
+pub fn init() {
     tracing_subscriber::registry()
         .with(EnvFilter::try_from_default_env().unwrap_or_else(|_| {
             // axum logs rejections from built-in extractors are at TRACE level
@@ -115,7 +107,7 @@ where
 
         println!(
             "{}",
-            serde_json::to_string(&serde_json::json!(output)).unwrap()
+            serde_json::to_string_pretty(&serde_json::json!(output)).unwrap()
         );
     }
 }

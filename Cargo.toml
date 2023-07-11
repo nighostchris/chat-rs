@@ -8,9 +8,12 @@ readme = "README.md"
 license = "MIT"
 
 [dependencies]
+anyhow = "1.0.71"
 axum = { version = "0.6.18", features = ["tracing"] }
 dotenvy = "0.15.7"
 serde_json = "1.0.100"
+sqlx = { version = "0.7.0", features = ["runtime-tokio-rustls", "macros", "postgres", "uuid", "time", "migrate", "json"] }
+sqlx-cli = { version = "0.7.0", default-features = false, features = ["postgres"] }
 time = { version = "0.3.23", features = ["formatting"] }
 tokio = { version = "1.29.1", features = ["full"] }
 tracing = "0.1.37"

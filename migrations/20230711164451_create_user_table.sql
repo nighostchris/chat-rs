@@ -1,0 +1,9 @@
+CREATE TABLE IF NOT EXISTS user (
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  email VARCHAR(100) UNIQUE NOT NULL,
+  verified BOOLEAN NOT NULL DEFAULT false,
+  name VARCHAR(50),
+  avatar TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
