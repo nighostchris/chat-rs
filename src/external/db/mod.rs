@@ -1,5 +1,6 @@
 use dotenvy::var;
-use sqlx::{postgres::PgPoolOptions, Pool, Postgres};
+use sqlx::postgres::PgPoolOptions;
+use sqlx::{Pool, Postgres};
 use tracing::info;
 
 // Initialize database client connection

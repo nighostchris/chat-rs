@@ -1,6 +1,7 @@
 mod config;
 mod external;
 mod logger;
+mod server;
 
 use config::load_env_vars;
 use external::db;
@@ -17,4 +18,6 @@ async fn main() {
     //       we should use a centralized repository solely for dealing with database migrations
     //       but as an experimental project in early stage we will stick with this approach first
     db::migrate(&db_client).await;
+    // Initialize web server
+    server::init().await;
 }

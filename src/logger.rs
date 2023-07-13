@@ -1,10 +1,14 @@
 use std::collections::HashMap;
-use time::{format_description::well_known::Rfc3339, OffsetDateTime};
-use tracing::{field::Field, span, Event, Subscriber};
-use tracing_subscriber::{
-    field::Visit, layer::Context, prelude::__tracing_subscriber_SubscriberExt,
-    registry::LookupSpan, util::SubscriberInitExt, EnvFilter, Layer,
-};
+use time::format_description::well_known::Rfc3339;
+use time::OffsetDateTime;
+use tracing::field::Field;
+use tracing::{span, Event, Subscriber};
+use tracing_subscriber::field::Visit;
+use tracing_subscriber::layer::Context;
+use tracing_subscriber::prelude::__tracing_subscriber_SubscriberExt;
+use tracing_subscriber::registry::LookupSpan;
+use tracing_subscriber::util::SubscriberInitExt;
+use tracing_subscriber::{EnvFilter, Layer};
 
 struct CustomLayer;
 

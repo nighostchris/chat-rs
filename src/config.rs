@@ -1,5 +1,6 @@
 use dotenvy::dotenv;
-use time::{format_description::well_known::Rfc3339, OffsetDateTime};
+use time::format_description::well_known::Rfc3339;
+use time::OffsetDateTime;
 
 // Read environment variables from '.env' file
 pub fn load_env_vars() {
