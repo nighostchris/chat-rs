@@ -13,6 +13,7 @@ Experimental project to build a chat application server in Rust
     - [Dump database using pg_dump](#dump-database-in-docker-container-using-pg_dump)
     - [Restore database using pg_restore](#restore-database-to-docker-container-using-pg_restore)
   - [Redis](#redis)
+- [Personal Notes](#personal-notes)
 
 ## Pre-requisite
 
@@ -32,6 +33,14 @@ rustc 1.70.0 (90c541806 2023-05-31)
 Create a file `.env` and copy the environment variables from `.env.example`
 
 Adjust the variable values according to your needs
+
+Run the project setup script after setting up local database
+
+```bash
+./scripts/init.sh
+# So that we can use sqlx offline mode while we are developing
+cargo sqlx prepare --database-url postgresql://root:root@localhost:5432/root
+```
 
 Start the server by running
 
@@ -70,15 +79,17 @@ All commands require that a database url is provided. This can be done either wi
 
 ```bash
 # Only install postgres related code
-cargo add sqlx-cli --no-default-features -F postgres
+cargo install sqlx-cli --no-default-features -F postgres
 # Creating reversible migrations in migrations directory
 sqlx migrate add -r <name>
 # Apply migration (default to be using .env in same directory you running the command)
 sqlx migrate run
 # Apply migration with explicit database url
-sqlx migrate run --database-url postgresql://postgres:postgres@localhost:5432/postgres
+sqlx migrate run --database-url postgresql://<username>:<password>@<host>:<port>/<database>
 # Revert migration
 sqlx migrate revert
+# Save query metadata to enable developing in offline mode
+cargo sqlx prepare --database-url postgresql://<username>:<password>@<host>:<port>/<database>
 ```
 
 ### PostgreSQL
@@ -131,3 +142,7 @@ vim ~/.iredisrc
 <name>=redis://<username>:<password>@<host>:<port>
 iredis -d <name>
 ```
+
+## Personal Notes
+
+I am trying to seperate the error resulted from database query with endpoint error handling. So my idea would be wrapping all queries into sqlx wrapper function and enforce all the return type to be `anyhow::Result`. Through this way, every API endpoints can use a match operator to deal with the database query result and error accordingly.

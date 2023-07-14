@@ -1,9 +1,9 @@
-use axum::http::StatusCode;
-use axum::response::IntoResponse;
-use axum::routing::get;
-use axum::{Json, Router, Server};
+mod handlers;
+
+use axum::routing::{get, post};
+use axum::{Router, Server};
 use dotenvy::var;
-use serde::Serialize;
+use handlers::health_check_handler;
 use sqlx::{Pool, Postgres};
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -11,11 +11,7 @@ use tower::ServiceBuilder;
 use tower_http::trace::TraceLayer;
 use tracing::info;
 
-#[derive(Serialize)]
-struct BaseResponse {
-    success: bool,
-}
-
+#[derive(Debug)]
 pub struct ServerState {
     db: Pool<Postgres>,
 }
@@ -26,8 +22,12 @@ pub async fn init(db_client: Pool<Postgres>) {
     let server_state = Arc::new(ServerState { db: db_client });
     // https://stackoverflow.com/questions/74302133/how-to-log-and-filter-requests-with-axum-tokio
     let service = ServiceBuilder::new().layer(TraceLayer::new_for_http());
+    // Define the routes for web server
+    let user_routes = Router::new().route("/register", post(handlers::user::register_handler));
+    let api_version_one_routes = Router::new().nest("/user", user_routes);
     let server = Router::new()
-        .route("/", get(health_check))
+        .route("/", get(health_check_handler))
+        .nest("/api/v1", api_version_one_routes)
         .layer(service)
         .with_state(server_state)
         .into_make_service();
@@ -57,10 +57,4 @@ pub async fn init(db_client: Pool<Postgres>) {
             e
         ),
     }
-}
-
-#[tracing::instrument]
-async fn health_check() -> impl IntoResponse {
-    info!("received request");
-    (StatusCode::OK, Json(BaseResponse { success: true }))
 }

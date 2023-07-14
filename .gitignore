@@ -17,3 +17,6 @@ Cargo.lock
 
 # Environment variables
 .env
+
+# Database snapshot for local sqlx development
+.sqlx
