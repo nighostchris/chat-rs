@@ -3,6 +3,9 @@ use sqlx::postgres::PgPoolOptions;
 use sqlx::{Pool, Postgres};
 use tracing::info;
 
+pub mod models;
+pub mod user;
+
 // Initialize database client connection
 #[tracing::instrument]
 pub async fn init() -> Pool<Postgres> {

@@ -27,7 +27,7 @@ pub fn init() {
     tracing_subscriber::registry()
         .with(EnvFilter::try_from_default_env().unwrap_or_else(|_| {
             // axum logs rejections from built-in extractors are at TRACE level
-            "chat_rs=debug,axum::rejection=trace".into()
+            "chat_rs=debug,axum::rejection=trace,tower_http=debug".into()
         }))
         // .with(tracing_subscriber::fmt::layer().json())
         .with(CustomLayer)
@@ -101,7 +101,12 @@ where
             // Get the data from extensions that store in on_new_span step
             if let Some(visitor) = extensions.get::<JsonStorage>() {
                 for (key, value) in visitor.get_storage() {
-                    parameters.insert(key, value.clone());
+                    match key.to_owned() {
+                        "method" => output.insert(key, value.clone()),
+                        "uri" => output.insert("path", value.clone()),
+                        "version" => None,
+                        _ => parameters.insert(key, value.clone()),
+                    };
                 }
             }
         }

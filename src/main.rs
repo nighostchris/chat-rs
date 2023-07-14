@@ -19,5 +19,5 @@ async fn main() {
     //       but as an experimental project in early stage we will stick with this approach first
     db::migrate(&db_client).await;
     // Initialize web server
-    server::init().await;
+    server::init(db_client.clone()).await;
 }

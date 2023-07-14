@@ -29,6 +29,19 @@ rustc 1.70.0 (90c541806 2023-05-31)
 
 ## Usage Guide
 
+Create a file `.env` and copy the environment variables from `.env.example`
+
+Adjust the variable values according to your needs
+
+Start the server by running
+
+```bash
+# Please don't use this in production
+cargo watch -q -c -w src/ -x run
+# Use this in production instead
+cargo run
+```
+
 ### Database Setup
 
 - Setup local docker - PostgreSQL container
@@ -118,4 +131,3 @@ vim ~/.iredisrc
 <name>=redis://<username>:<password>@<host>:<port>
 iredis -d <name>
 ```
-
