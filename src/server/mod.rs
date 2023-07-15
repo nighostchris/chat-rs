@@ -1,4 +1,4 @@
-mod handlers;
+pub mod handlers;
 
 use axum::routing::{get, post};
 use axum::{Router, Server};

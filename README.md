@@ -142,7 +142,3 @@ vim ~/.iredisrc
 <name>=redis://<username>:<password>@<host>:<port>
 iredis -d <name>
 ```
-
-## Personal Notes
-
-I am trying to seperate the error resulted from database query with endpoint error handling. So my idea would be wrapping all queries into sqlx wrapper function and enforce all the return type to be `anyhow::Result`. Through this way, every API endpoints can use a match operator to deal with the database query result and error accordingly.

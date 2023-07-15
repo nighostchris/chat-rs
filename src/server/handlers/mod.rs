@@ -6,15 +6,15 @@ use axum::Json;
 use serde::Serialize;
 use tracing::info;
 
-#[derive(Serialize)]
+#[derive(Debug, Serialize)]
 pub struct HealthCheckResponse {
-    success: bool,
+    pub success: bool,
 }
 
-#[derive(Serialize)]
+#[derive(Debug, Serialize)]
 pub struct ErrorResponse {
-    success: bool,
-    error: String,
+    pub success: bool,
+    pub error: String,
 }
 
 // Handler function for path '/'
