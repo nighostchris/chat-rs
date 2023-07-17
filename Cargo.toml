@@ -10,6 +10,7 @@ license = "MIT"
 [dependencies]
 anyhow = "1.0.71"
 axum = { version = "0.6.18", features = ["tracing"] }
+axum-macros = "0.3.7"
 bcrypt = "0.15.0"
 dotenvy = "0.15.7"
 serde = "1.0.171"

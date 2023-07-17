@@ -11,6 +11,8 @@ use serde::Deserialize;
 use std::sync::Arc;
 use tracing::{error, info};
 
+use super::CustomJson;
+
 #[derive(Debug, Deserialize)]
 pub struct RegisterSchema {
     email: String,
@@ -21,7 +23,7 @@ pub struct RegisterSchema {
 #[tracing::instrument]
 pub async fn register_handler(
     State(state): State<Arc<ServerState>>,
-    Json(body): Json<RegisterSchema>,
+    CustomJson(body): CustomJson<RegisterSchema>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<ErrorResponse>)> {
     info!("received request");
     let is_user_exists = db::user::is_user_exists(&state.db, body.email).await?;
