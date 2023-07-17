@@ -18,14 +18,18 @@ pub struct CustomError {
 }
 
 #[derive(Debug, Serialize)]
-pub struct HealthCheckResponse {
-    pub success: bool,
-}
+pub struct HealthCheck;
 
 #[derive(Debug, Serialize)]
 pub struct ErrorResponse {
     pub success: bool,
     pub error: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct SuccessResponse<T> {
+    success: bool,
+    result: T,
 }
 
 impl From<JsonRejection> for CustomError {
@@ -78,5 +82,11 @@ impl IntoResponse for CustomError {
 #[tracing::instrument]
 pub async fn health_check_handler() -> impl IntoResponse {
     info!("received request");
-    (StatusCode::OK, Json(HealthCheckResponse { success: true }))
+    (
+        StatusCode::OK,
+        Json(SuccessResponse::<HealthCheck> {
+            success: true,
+            result: HealthCheck {},
+        }),
+    )
 }
