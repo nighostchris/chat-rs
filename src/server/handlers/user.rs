@@ -1,11 +1,12 @@
 use crate::db;
 use crate::external::db::user::NewUser;
-use crate::server::handlers::{ErrorResponse, HealthCheck, SuccessResponse};
+use crate::server::handlers::{ErrorResponse, SuccessResponse};
 use crate::server::ServerState;
 use axum::extract::State;
-use axum::http::StatusCode;
+use axum::http::{header, StatusCode};
 use axum::response::IntoResponse;
 use axum::Json;
+use axum_extra::extract::cookie::{Cookie, SameSite};
 use bcrypt::{hash, DEFAULT_COST};
 use dotenvy::var;
 use jsonwebtoken::{encode, EncodingKey, Header};
@@ -31,13 +32,10 @@ pub struct Claims {
     exp: u64,
 }
 
-// #[derive(Debug, Serialize)]
-// pub struct RegisterResponse {
-//     success: bool,
-//     result: {
-//         message: String,
-//     }
-// }
+#[derive(Debug, Serialize)]
+pub struct RegisterResponse {
+    message: String,
+}
 
 // Handler function for path '/api/v1/user/register'
 #[tracing::instrument]
@@ -131,13 +129,29 @@ pub async fn register_handler(
     })?;
 
     // Construct cookie for the JWT access token
-    // let cookie = Cookie::build()
+    let cookie = Cookie::build("token", access_token.to_owned())
+        .path("/")
+        .secure(false) // Forbid cookie from transmitting over simple HTTP
+        .http_only(true) // Blocks access of related cookie from client side
+        .same_site(SameSite::Lax) // SameSite 'none' has to be used together with secure - true
+        .max_age(Duration::minutes(5))
+        .finish(); // The duration better to align with expiry time of access token
 
-    Ok((
+    let mut response = (
         StatusCode::OK,
-        Json(SuccessResponse::<HealthCheck> {
+        Json(SuccessResponse::<RegisterResponse> {
             success: true,
-            result: HealthCheck {},
+            result: RegisterResponse {
+                message: "User registration complete.".to_string(),
+            },
         }),
-    ))
+    )
+        .into_response();
+
+    // Embed the cookie in response
+    response
+        .headers_mut()
+        .insert(header::SET_COOKIE, cookie.to_string().parse().unwrap());
+
+    Ok(response)
 }
