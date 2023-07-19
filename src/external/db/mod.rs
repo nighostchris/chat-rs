@@ -5,6 +5,7 @@ use tracing::info;
 
 pub mod models;
 pub mod user;
+pub mod user_verification;
 
 // Initialize database client connection
 #[tracing::instrument]

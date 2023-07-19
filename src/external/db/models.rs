@@ -14,3 +14,12 @@ pub struct User {
     pub created_at: Date,
     pub updated_at: Date,
 }
+
+#[derive(Clone, Debug, Deserialize, FromRow, Serialize)]
+pub struct UserVerification {
+    pub id: Uuid,
+    pub user_id: Uuid,
+    pub secret: String,
+    pub created_at: Date,
+    pub updated_at: Date,
+}

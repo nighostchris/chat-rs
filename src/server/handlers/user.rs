@@ -1,5 +1,6 @@
 use crate::db;
 use crate::external::db::user::NewUser;
+use crate::external::db::user_verification::NewUserVerification;
 use crate::server::handlers::{ErrorResponse, SuccessResponse};
 use crate::server::ServerState;
 use axum::extract::State;
@@ -10,11 +11,12 @@ use axum_extra::extract::cookie::{Cookie, SameSite};
 use bcrypt::{hash, DEFAULT_COST};
 use dotenvy::var;
 use jsonwebtoken::{encode, EncodingKey, Header};
+use rand::RngCore;
 use serde::{Deserialize, Serialize};
 use std::ops::Add;
 use std::sync::Arc;
 use time::{Duration, OffsetDateTime};
-use tracing::{error, info};
+use tracing::{debug, error, info};
 use uuid::Uuid;
 
 use super::CustomJson;
@@ -35,6 +37,7 @@ pub struct Claims {
 #[derive(Debug, Serialize)]
 pub struct RegisterResponse {
     message: String,
+    verification_token: String,
 }
 
 // Handler function for path '/api/v1/user/register'
@@ -57,6 +60,7 @@ pub async fn register_handler(
         ));
     }
 
+    debug!("going to generate hashed password");
     // Generate hashed password for user
     let hashed_password = hash(body.password, DEFAULT_COST).map_err(|error| {
         error!("password hashing error. {}", error);
@@ -70,6 +74,7 @@ pub async fn register_handler(
         );
     })?;
 
+    debug!("going to insert new user record into database");
     // Insert a new user record into database
     let user_id = db::user::insert_new_user(
         &state.db,
@@ -104,12 +109,13 @@ pub async fn register_handler(
         );
     })?;
 
+    debug!("constructing jwt access token");
     // Construct JWT access token
     let access_token = encode(
         &Header::default(),
         &Claims {
             sub: user_id,
-            iss: token_iss,
+            iss: token_iss.clone(),
             exp: OffsetDateTime::now_utc()
                 .add(Duration::minutes(5))
                 .unix_timestamp()
@@ -128,6 +134,52 @@ pub async fn register_handler(
         );
     })?;
 
+    // Generate a random 64 bytes long secret to sign the verification token for the user
+    let mut random_bytes = [0u8; 32];
+    rand::thread_rng().fill_bytes(&mut random_bytes);
+    let verification_secret = random_bytes
+        .iter()
+        .map(|byte| format!("{:x}", byte).to_string())
+        .collect::<Vec<String>>()
+        .join("");
+
+    debug!("inserting new user verification record into database");
+    // Insert a new user verification record
+    db::user_verification::insert_new_user_verification(
+        &state.db,
+        NewUserVerification {
+            user_id: user_id.clone(),
+            secret: verification_secret.clone(),
+        },
+    )
+    .await?;
+
+    debug!("constructing jwt verification token");
+    // Construct the verification token
+    let verification_token = encode(
+        &Header::default(),
+        &Claims {
+            sub: user_id,
+            iss: token_iss,
+            exp: OffsetDateTime::now_utc()
+                .add(Duration::minutes(5))
+                .unix_timestamp()
+                .unsigned_abs(),
+        },
+        &EncodingKey::from_secret(verification_secret.as_ref()),
+    )
+    .map_err(|error| {
+        error!("jwt verification token construction error. {}", error);
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorResponse {
+                success: false,
+                error: format!("Internal server error. Please try to register again."),
+            }),
+        );
+    })?;
+
+    debug!("constructing cookie for JWT access token");
     // Construct cookie for the JWT access token
     let cookie = Cookie::build("token", access_token.to_owned())
         .path("/")
@@ -143,6 +195,9 @@ pub async fn register_handler(
             success: true,
             result: RegisterResponse {
                 message: "User registration complete.".to_string(),
+                // We should send email with the link of postfix containing the verification token to the user email
+                // We are embedding the verification token here for easier development purpose
+                verification_token,
             },
         }),
     )
