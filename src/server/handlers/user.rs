@@ -1,16 +1,17 @@
+use super::{CustomJson, CustomQuery};
 use crate::db;
 use crate::external::db::user::NewUser;
 use crate::external::db::user_verification::NewUserVerification;
 use crate::server::handlers::{ErrorResponse, SuccessResponse};
 use crate::server::ServerState;
-use axum::extract::State;
+use axum::extract::{Query, State};
 use axum::http::{header, StatusCode};
 use axum::response::IntoResponse;
 use axum::Json;
 use axum_extra::extract::cookie::{Cookie, SameSite};
 use bcrypt::{hash, DEFAULT_COST};
 use dotenvy::var;
-use jsonwebtoken::{encode, EncodingKey, Header};
+use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation};
 use rand::RngCore;
 use serde::{Deserialize, Serialize};
 use std::ops::Add;
@@ -19,12 +20,15 @@ use time::{Duration, OffsetDateTime};
 use tracing::{debug, error, info};
 use uuid::Uuid;
 
-use super::CustomJson;
-
 #[derive(Clone, Debug, Deserialize)]
 pub struct RegisterSchema {
     email: String,
     password: String,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+pub struct ActivateSchema {
+    token: String,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -38,6 +42,11 @@ pub struct Claims {
 pub struct RegisterResponse {
     message: String,
     verification_token: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ActivateResponse {
+    message: String,
 }
 
 // Handler function for path '/api/v1/user/register'
@@ -209,4 +218,75 @@ pub async fn register_handler(
         .insert(header::SET_COOKIE, cookie.to_string().parse().unwrap());
 
     Ok(response)
+}
+
+// Handler function for path '/api/v1/user/activate'
+pub async fn activate_handler(
+    State(state): State<Arc<ServerState>>,
+    Query(params): Query<ActivateSchema>,
+) -> Result<impl IntoResponse, (StatusCode, Json<ErrorResponse>)> {
+    info!("received request");
+
+    println!("{}", &params.token);
+
+    // Verify user token
+    // As jsonwebtoken library in Rust doesn't directly expose an API to decode without secret
+    // We will get the user_id from claims with reference to the issue below
+    // https://github.com/Keats/jsonwebtoken/issues/277
+    // As we encode the token using default Header, i.e. HS256
+    let mut insecure_validation = Validation::new(jsonwebtoken::Algorithm::HS256);
+    insecure_validation.insecure_disable_signature_validation();
+    let decoded_claims = decode::<Claims>(
+        &params.token,
+        &DecodingKey::from_secret(&[]),
+        &insecure_validation,
+    )
+    .map_err(|error| {
+        error!(
+            "failed to retrieve user_id by decoding jwt token without verification. {}",
+            error
+        );
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(ErrorResponse {
+                success: false,
+                error: format!("Invalid verification token."),
+            }),
+        );
+    })?;
+
+    debug!("going to verify user verification token");
+    let secret =
+        db::user_verification::get_user_verification_secret(&state.db, &decoded_claims.claims.sub)
+            .await?;
+    // We don't care about the content inside claims as we just want to know if the token are encoded with the same secret
+    decode::<Claims>(
+        &params.token,
+        &DecodingKey::from_secret(secret.as_bytes()),
+        &Validation::new(jsonwebtoken::Algorithm::HS256),
+    )
+    .map_err(|error| {
+        error!("invalid jwt verification token. {}", error);
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(ErrorResponse {
+                success: false,
+                error: format!("Invalid verification token."),
+            }),
+        );
+    })?;
+
+    // Update user verification status
+    debug!("going to update user verification status");
+    db::user::update_verified_status(&state.db, &decoded_claims.claims.sub, true).await?;
+
+    Ok((
+        StatusCode::OK,
+        Json(SuccessResponse::<ActivateResponse> {
+            success: true,
+            result: ActivateResponse {
+                message: "User activated.".to_string(),
+            },
+        }),
+    ))
 }

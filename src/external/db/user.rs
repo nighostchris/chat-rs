@@ -51,21 +51,18 @@ pub async fn insert_new_user(
         new_user.password,
     )
     .fetch_one(db_client)
-    .await;
-
-    match inserted_user_id {
-        Ok(user_id) => Ok(user_id),
-        Err(e) => {
-            error!("{}", e);
-            Err((
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse {
-                    success: false,
-                    error: format!("Internal server error."),
-                }),
-            ))
-        }
-    }
+    .await
+    .map_err(|error| {
+        error!("{}", error);
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorResponse {
+                success: false,
+                error: format!("Internal server error."),
+            }),
+        )
+    });
+    inserted_user_id
 }
 
 #[tracing::instrument]
@@ -76,19 +73,42 @@ pub async fn get_user_password(
     let user_password =
         sqlx::query_scalar!("SELECT password FROM \"user\" WHERE email = $1", email)
             .fetch_one(db_client)
-            .await;
+            .await
+            .map_err(|error| {
+                error!("{}", error);
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(ErrorResponse {
+                        success: false,
+                        error: format!("Internal server error."),
+                    }),
+                )
+            });
+    user_password
+}
 
-    match user_password {
-        Ok(password) => Ok(password),
-        Err(e) => {
-            error!("{}", e);
-            Err((
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse {
-                    success: false,
-                    error: format!("Internal server error."),
-                }),
-            ))
-        }
-    }
+#[tracing::instrument]
+pub async fn update_verified_status(
+    db_client: &Pool<Postgres>,
+    user_id: &Uuid,
+    status: bool,
+) -> Result<(), (StatusCode, Json<ErrorResponse>)> {
+    sqlx::query!(
+        "UPDATE \"user\" SET verified = $1 WHERE id = $2",
+        status,
+        user_id
+    )
+    .execute(db_client)
+    .await
+    .map_err(|error| {
+        error!("{}", error);
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorResponse {
+                success: false,
+                error: format!("Internal server error."),
+            }),
+        )
+    })?;
+    Ok(())
 }

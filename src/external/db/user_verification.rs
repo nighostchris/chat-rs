@@ -34,8 +34,7 @@ pub async fn get_user_verification_secret(
             }),
         );
     })?;
-
-    return Ok(user_verification_secret);
+    Ok(user_verification_secret)
 }
 
 #[tracing::instrument]
@@ -63,6 +62,5 @@ pub async fn insert_new_user_verification(
             }),
         );
     })?;
-
     Ok(())
 }

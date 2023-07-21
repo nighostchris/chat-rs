@@ -23,7 +23,9 @@ pub async fn init(db_client: Pool<Postgres>) {
     // https://stackoverflow.com/questions/74302133/how-to-log-and-filter-requests-with-axum-tokio
     let service = ServiceBuilder::new().layer(TraceLayer::new_for_http());
     // Define the routes for web server
-    let user_routes = Router::new().route("/register", post(handlers::user::register_handler));
+    let user_routes = Router::new()
+        .route("/register", post(handlers::user::register_handler))
+        .route("/activate", get(handlers::user::activate_handler));
     let api_version_one_routes = Router::new().nest("/user", user_routes);
     let server = Router::new()
         .route("/", get(health_check_handler))

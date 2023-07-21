@@ -1,16 +1,21 @@
 pub mod user;
 
 use axum::extract::rejection::JsonRejection;
+use axum::extract::Query;
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::Json;
-use axum_macros::FromRequest;
+use axum_macros::{FromRequest, FromRequestParts};
 use serde::Serialize;
 use tracing::{error, info};
 
 #[derive(FromRequest)]
 #[from_request(via(Json), rejection(CustomError))]
 pub struct CustomJson<T>(T);
+
+#[derive(FromRequestParts)]
+#[from_request(via(Query), rejection(CustomError))]
+pub struct CustomQuery<T>(T);
 
 pub struct CustomError {
     status: StatusCode,
