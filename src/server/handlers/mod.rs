@@ -1,6 +1,6 @@
 pub mod user;
 
-use axum::extract::rejection::JsonRejection;
+use axum::extract::rejection::{JsonRejection, QueryRejection};
 use axum::extract::Query;
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
@@ -46,11 +46,29 @@ impl From<JsonRejection> for CustomError {
     }
 }
 
+impl From<QueryRejection> for CustomError {
+    fn from(rejection: QueryRejection) -> Self {
+        Self {
+            status: rejection.status(),
+            message: rejection.body_text(),
+        }
+    }
+}
+
 impl IntoResponse for CustomError {
     fn into_response(self) -> Response {
         error!("{}", self.message);
         // format!("Missing required fields in request body.")
         let error_message = match self.status {
+            StatusCode::BAD_REQUEST => {
+                if self.message.contains("missing field") {
+                    let message_shards: Vec<&str> = self.message.split('`').collect();
+                    let field_name = message_shards[1].trim();
+                    format!("Missing required field {} in query.", field_name)
+                } else {
+                    format!("Invalid request.")
+                }
+            }
             StatusCode::UNSUPPORTED_MEDIA_TYPE => format!("Expected non-empty request body."),
             StatusCode::UNPROCESSABLE_ENTITY => {
                 if self.message.contains("invalid type") {
@@ -68,10 +86,8 @@ impl IntoResponse for CustomError {
                     format!("Unable to process request body.")
                 }
             }
-            StatusCode::BAD_REQUEST => format!("Invalid request."),
             _ => self.message,
         };
-
         (
             self.status,
             Json(ErrorResponse {

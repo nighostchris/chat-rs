@@ -4,7 +4,7 @@ use crate::external::db::user::NewUser;
 use crate::external::db::user_verification::NewUserVerification;
 use crate::server::handlers::{ErrorResponse, SuccessResponse};
 use crate::server::ServerState;
-use axum::extract::{Query, State};
+use axum::extract::State;
 use axum::http::{header, StatusCode};
 use axum::response::IntoResponse;
 use axum::Json;
@@ -223,11 +223,9 @@ pub async fn register_handler(
 // Handler function for path '/api/v1/user/activate'
 pub async fn activate_handler(
     State(state): State<Arc<ServerState>>,
-    Query(params): Query<ActivateSchema>,
+    CustomQuery(params): CustomQuery<ActivateSchema>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<ErrorResponse>)> {
     info!("received request");
-
-    println!("{}", &params.token);
 
     // Verify user token
     // As jsonwebtoken library in Rust doesn't directly expose an API to decode without secret
